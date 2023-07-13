@@ -21,6 +21,7 @@ on:
       TERRAFORM_VERSION:
         required: false
         default: 1.2.9
+        type: string
 
     secrets:
       AWS_ACCESS_KEY_ID:
