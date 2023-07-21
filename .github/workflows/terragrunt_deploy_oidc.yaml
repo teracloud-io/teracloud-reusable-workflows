@@ -1,0 +1,72 @@
+name: Deploy using Terragrunt
+
+on:
+  workflow_call:
+    inputs:
+      ENVIRONMENT:
+        required: true
+        type: string
+      AWS_REGION:
+        required: false
+        default: "us-east-1"
+        type: string
+      INFRA_PATH:
+        required: false
+        default: terraform
+        type: string
+      IAM_ASSUME_ROLE:
+        required: true
+        type: string
+      TERRAGRUNT_VERSION:
+        required: false
+        default: 0.36.12
+        type: string
+      TERRAFORM_VERSION:
+        required: false
+        default: 1.2.9
+        type: string
+
+    secrets:
+      SSH_KEY:
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_DEFAULT_REGION: ${{ inputs.AWS_REGION}}
+      ENV: ${{ inputs.ENVIRONMENT }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3.1.0
+        with:
+          fetch-depth: 0
+          
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: "${{ inputs.AWS_REGION }}"
+          role-to-assume: "${{ inputs.IAM_ASSUME_ROLE }}"
+          role-duration-seconds: 1200
+          role-session-name: TerraformSession
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_wrapper: false
+          terraform_version: ${{ inputs.TERRAFORM_VERSION }}
+
+      - name: Install Terragrunt
+        uses: peter-murray/terragrunt-github-action@v1.0.0
+        with:
+          terragrunt_version: ${{ inputs.TERRAGRUNT_VERSION }}
+
+      - name: Terragrunt Apply
+        run: | 
+          eval `ssh-agent -s`
+          ssh-add - <<< '${{ secrets.SSH_KEY }}'
+          terragrunt run-all apply --terragrunt-non-interactive --terragrunt-include-external-dependencies -no-color
+        working-directory: ${{ github.workspace }}/${{ inputs.INFRA_PATH }}/environment/${{ inputs.ENVIRONMENT }}/
